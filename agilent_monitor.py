@@ -50,12 +50,15 @@ class AgilentE3632AApp:
         log_frame = ttk.LabelFrame(self.root, text="Data Log", padding=10)
         log_frame.pack(fill="both", expand=True, padx=10, pady=5)
 
-        self.log_text = tk.Text(log_frame, height=15)
-        self.log_text.pack(side="left", fill="both", expand=True)
+        # Create scrollbar first to reserve space, then text widget
+        self.scrollbar = ttk.Scrollbar(log_frame, orient="vertical")
+        self.scrollbar.pack(side="right", fill="y")
 
-        scrollbar = ttk.Scrollbar(log_frame, orient="vertical", command=self.log_text.yview)
-        scrollbar.pack(side="right", fill="y")
-        self.log_text.configure(yscrollcommand=scrollbar.set)
+        self.log_text = tk.Text(log_frame, height=15, yscrollcommand=self.scrollbar.set)
+        self.log_text.pack(side="left", fill="both", expand=False)
+
+        # Configure scrollbar command after both widgets are created
+        self.scrollbar.config(command=self.log_text.yview)
 
     def refresh_ports(self):
         ports = [port.device for port in serial.tools.list_ports.comports()]
@@ -70,16 +73,16 @@ class AgilentE3632AApp:
 
     def start_monitoring(self):
         port = self.port_var.get()
-        print(f"\n[DEBUG] Connecting to {port}...") # 디버그
+        print(f"\n[DEBUG] Connecting to {port}...") # Debug
         
         try:
             self.serial_port = serial.Serial(
-                port=port, baudrate=9600, timeout=3, # 타임아웃 3초로 연장
+                port=port, baudrate=9600, timeout=3, # Extended timeout to 3 seconds
                 dsrdtr=False, rtscts=False
             )
             print(f"[DEBUG] Port {port} opened successfully.")
 
-            # IDN 확인 (장비 연결 테스트)
+            # IDN verification (device connection test)
             print("[DEBUG] Sending *IDN? query...")
             self.serial_port.write(b"*IDN?\r\n")
             time.sleep(0.5)
@@ -89,7 +92,7 @@ class AgilentE3632AApp:
                 print(f"[DEBUG] Device Identified: {idn}")
             else:
                 print("[DEBUG] No response to *IDN?. Check cable/baudrate.")
-                # 응답이 없어도 진행은 하되 경고 출력
+                # Proceed even without response, but print warning
 
             print("[DEBUG] Setting to Remote Mode...")
             self.serial_port.write(b"SYST:REM\r\n")
@@ -153,21 +156,21 @@ class AgilentE3632AApp:
         self.export_btn.config(state="normal")
 
     def clear_logs(self):
-        """로그 창과 데이터 로그를 모두 지우기"""
-        self.log_text.delete(1.0, tk.END)  # 텍스트 위젯의 모든 내용 삭제
-        self.data_log.clear()  # 데이터 로그 리스트도 비우기
+        """Clear both log window and data log"""
+        self.log_text.delete(1.0, tk.END)  # Delete all content from text widget
+        self.data_log.clear()  # Also clear data log list
 
     def export_csv(self):
-        """데이터 로그를 CSV 파일로 저장"""
+        """Save data log as CSV file"""
         if not self.data_log:
-            messagebox.showwarning("Warning", "Export할 데이터가 없습니다.")
+            messagebox.showwarning("Warning", "No data to export.")
             return
 
-        # 파일 저장 대화상자
+        # File save dialog
         filename = filedialog.asksaveasfilename(
             defaultextension=".csv",
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
-            title="CSV 파일로 저장"
+            title="Save as CSV file"
         )
 
         if filename:
@@ -175,17 +178,17 @@ class AgilentE3632AApp:
                 with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
                     writer = csv.writer(csvfile)
                     
-                    # 헤더 작성
+                    # Write header
                     writer.writerow(['Time', 'Voltage (V)', 'Current (A)'])
                     
-                    # 데이터 작성
+                    # Write data
                     for row in self.data_log:
                         writer.writerow(row)
                 
-                messagebox.showinfo("Success", f"CSV 파일이 성공적으로 저장되었습니다:\n{filename}")
+                messagebox.showinfo("Success", f"CSV file saved successfully:\n{filename}")
                 
             except Exception as e:
-                messagebox.showerror("Error", f"CSV 파일 저장 중 오류가 발생했습니다:\n{str(e)}")
+                messagebox.showerror("Error", f"Error saving CSV file:\n{str(e)}")
 
     def update_log_ui(self, text):
         self.log_text.insert(tk.END, text)
