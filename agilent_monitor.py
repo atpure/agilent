@@ -63,6 +63,21 @@ class AgilentE3632AApp:
         if ports:
             self.port_combo.current(0)
 
+    def format_value(self, value_str):
+        """전압/전류 값을 포맷팅: 음수일 때만 - 부호, 소수점 4자리 반올림 후 3자리 표시"""
+        try:
+            value = float(value_str)
+            # 소수점 4자리에서 반올림
+            rounded_value = round(value, 4)
+            
+            # 양수인 경우 부호 없이, 음수인 경우 - 부호 포함 (소수점 3자리까지 표시)
+            if rounded_value >= 0:
+                return f"{rounded_value:.3f}"
+            else:
+                return f"{rounded_value:.3f}"  # 음수이면 - 부호 자동 포함
+        except ValueError:
+            return value_str  # 변환 실패시 원본 값 반환
+
     def start_monitoring(self):
         port = self.port_var.get()
         if not port:
@@ -78,8 +93,10 @@ class AgilentE3632AApp:
                 bytesize=serial.EIGHTBITS,
                 parity=serial.PARITY_NONE,
                 stopbits=serial.STOPBITS_ONE,
-                timeout=1,
-                dsrdtr=True # E3632A often requires DSR/DTR
+                timeout=2,             # 응답 대기 시간 (초)
+                xonxoff=False,
+                rtscts=False,
+                dsrdtr=True
             )
             
             # Identify device
@@ -132,10 +149,16 @@ class AgilentE3632AApp:
 
                 if volt and curr:
                     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    log_entry = [now, volt, curr]
+                    
+                    # 전압과 전류 값을 포맷팅
+                    formatted_volt = self.format_value(volt)
+                    formatted_curr = self.format_value(curr)
+                    
+                    # 포맷팅된 값을 로그에 저장
+                    log_entry = [now, formatted_volt, formatted_curr]
                     self.data_log.append(log_entry)
                     
-                    display_text = f"[{now}] V: {volt}V, A: {curr}A\n"
+                    display_text = f"[{now}] V: {formatted_volt}, A: {formatted_curr}\n"
                     self.root.after(0, self.update_log_ui, display_text)
 
                 time.sleep(1)
